@@ -1,0 +1,109 @@
+networks:
+  irispreviewetwork:
+    ipam:
+      driver: default
+      config:
+        - subnet: 182.0.0.0/24
+services:
+  iris:
+    build: 
+      context: .
+    restart: always
+    container_name: ${iris_container_name}
+    hostname: ${iris_container_name}
+    ports:
+      - 1972
+      - 52773
+      - 53773
+    command: --check-caps false
+    # command: --key /key/iris.key
+    # environment:
+    #   - ISC_DATA_DIRECTORY=/irisdata
+    volumes:
+      - ./data:/data
+      # - ./volumes/irisdata:/irisdata
+      # - ./key/iris.key:/key/iris.key
+    networks:
+      irispreviewetwork:
+        ipv4_address: 182.0.0.10
+  mysql: 
+    # image: mysql:8.0.30
+    image: mysql
+    command: --default-authentication-plugin=mysql_native_password
+    hostname: mysql
+    init: true
+    container_name: ${iris_container_name}-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=mysqlpass
+    ports:
+      - 4306:3306
+    volumes:
+      - ./mysql:/docker-entrypoint-initdb.d
+    networks:
+      irispreviewetwork:
+        ipv4_address: 182.0.0.11
+  postgres:
+    container_name: ${iris_container_name}-postgres
+    # image: postgres:13.4-alpine3.14
+    image: postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./src/sql/postgreSQL:/docker-entrypoint-initdb.d/
+      - ./volumes/postgreSQL:/var/lib/postgresql/data
+    ports:
+      - 6432:5432
+    restart: unless-stopped
+    healthcheck:
+        test: ["CMD", "pg_isready", "-U", "postgres"]
+        interval: 30s
+        timeout: 30s
+        retries: 3
+    networks:
+      irispreviewetwork:
+        ipv4_address: 182.0.0.12
+  ftp_server:
+    image: delfer/alpine-ftp-server:latest
+    container_name: ${iris_container_name}-ftp-server
+    ports:
+      - "31:21"
+      - "31000-31010:21000-21010"
+    volumes: 
+      - "./data:/home/app/"
+      # - "./data/passwd:/etc/pure-ftpd/passwd"
+# uncomment for ssl/tls, see https://github.com/stilliard/docker-pure-ftpd#tls
+#      - "/folder_on_disk/ssl:/etc/ssl/private/"
+# or ssl/tls with Let's Encrypt (cert and key as two files)
+#      - "/etc/letsencrypt/live/<your_server>/cert.pem:/etc/ssl/private/pure-ftpd-cert.pem"
+#      - "/etc/letsencrypt/live/<your_server>/privkey.pem:/etc/ssl/private/pure-ftpd-key.pem"
+    environment:
+      PUBLICHOST: "localhost"
+      USERS: "app|youneverknow|/home/app|10000"
+      ADDRESS: "182.0.0.100"
+# also for ssl/tls:
+#      ADDED_FLAGS: "--tls=2"
+    restart: always
+    networks:
+      irispreviewetwork:
+        ipv4_address: 182.0.0.100
+  # webgateway:
+  #   hostname: ${web_container_name}
+  #   container_name: ${web_container_name}
+  #   depends_on:
+  #     - iris
+  #   image: localhost/intersystems/webgateway-arm64:2023.1.0.235.1
+  #   ports:
+  #   - ${web_port_https}:443
+  #   - ${web_port_http}:80
+  #   environment:
+  #     - ISC_DATA_DIRECTORY=/webgateway
+  #     - IRIS_USER=CSPsystem
+  #     - IRIS_PASSWORD=SYS
+  #   networks:
+  #     irispreviewetwork:
+  #       ipv4_address: 182.0.0.200
+  #   volumes:
+  #     - "./webgateway:/webgateway"
+
+
+
